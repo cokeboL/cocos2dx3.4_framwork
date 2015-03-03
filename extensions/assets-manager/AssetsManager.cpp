@@ -341,12 +341,20 @@ bool AssetsManager::uncompress()
         {
             // Entry is a direcotry, so create it.
             // If the directory exists, it will failed scilently.
-            if (!createDirectory(fullPath.c_str()))
-            {
-                CCLOG("can not create directory %s", fullPath.c_str());
-                unzClose(zipfile);
-                return false;
-            }
+			if (!dirs[fullPath])
+			{
+				if (!createDirectory(fullPath.c_str()))
+				{
+					CCLOG("can not create directory %s", fullPath.c_str());
+					unzClose(zipfile);
+					return false;
+				}
+				else
+				{
+					dirs[fullPath] = true;
+					CCLOG("create directory %s", fullPath.c_str());
+				}
+			}
         }
         else
         {
@@ -367,16 +375,20 @@ bool AssetsManager::uncompress()
                 
                 if(!out)
                 {
-                    if (!createDirectory(dir.c_str()))
-                    {
-                        CCLOG("can not create directory %s", dir.c_str());
-                        unzClose(zipfile);
-                        return false;
-                    }
-                    else
-                    {
-                        CCLOG("create directory %s",dir.c_str());
-                    }
+					if (!dirs[dir])
+					{
+						if (!createDirectory(dir.c_str()))
+						{
+							CCLOG("can not create directory %s", dir.c_str());
+							unzClose(zipfile);
+							return false;
+						}
+						else
+						{
+							dirs[dir] = true;
+							CCLOG("create directory %s", dir.c_str());
+						}
+					}
                 }
                 else
                 {
@@ -456,12 +468,13 @@ bool AssetsManager::uncompress()
 /*
  * Create a direcotry is platform depended.
  */
-bool AssetsManager::createDirectory(const char *path)
+
+bool AssetsManager::createDirectory(std::string path)
 {
 #if (CC_TARGET_PLATFORM == CC_PLATFORM_WINRT) || (CC_TARGET_PLATFORM == CC_PLATFORM_WP8)
     return FileUtils::getInstance()->createDirectory(_storagePath.c_str());
 #elif (CC_TARGET_PLATFORM == CC_PLATFORM_WIN32)
-    BOOL ret = CreateDirectoryA(path, nullptr);
+    BOOL ret = CreateDirectoryA(path.c_str(), nullptr);
     if (!ret && ERROR_ALREADY_EXISTS != GetLastError())
     {
         return false;
@@ -695,16 +708,62 @@ void AssetsManager::destroyStoragePath()
 #endif
 }
 
+static void encrypt(string file, string file2)
+{
+	char buf[BUFFER_SIZE] = { 0 };
+
+	FILE *fp = fopen(file.c_str(), "rb");
+	FILE *fp2 = fopen(file2.c_str(), "wb+");
+
+	if (!fp)
+	{
+		printf("open file failed: %m!\n");
+		return;
+	}
+
+	size_t nread = 0;
+	fseek(fp, 0, SEEK_SET);
+	while (nread = fread(buf, 1, BUFFER_SIZE, fp))
+	{
+		for (int i = 0; i < nread; i++)
+		{
+			buf[i] = buf[i] ^ (i % 255 + 1);
+		}
+		printf("%d", fwrite(buf, 1, nread, fp2));
+	}
+
+	fclose(fp);
+	fclose(fp2);
+
+	return;
+}
+
+std::map<std::string, bool> AssetsManager::dirs;
+
 bool AssetsManager::uncompress(std::string binFile)
 {
 	// Open the zip file
+	string file = binFile;
 	string savepath = FileUtils::getInstance()->getWritablePath();
 	string outFileName = savepath + binFile;
+	//binFile = FileUtils::getInstance()->fullPathForFilename(binFile);
+
+	string binFile2 = FileUtils::getInstance()->getWritablePath();
+	if (binFile2[binFile2.length() - 1] == '/')
+	{
+		binFile2 += binFile + "-tmp";
+	}
+	else
+	{
+		binFile2 = binFile2 + "/" + binFile + "-tmp";
+	}
 	binFile = FileUtils::getInstance()->fullPathForFilename(binFile);
-	unzFile zipfile = unzOpen(binFile.c_str());
+	encrypt(binFile, binFile2);
+
+	unzFile zipfile = unzOpen(binFile2.c_str());
 	if (!zipfile)
 	{
-		CCLOG("can not open downloaded zip file %s", binFile.c_str());
+		CCLOG("can not open downloaded zip file %s", binFile2.c_str());
 		return false;
 	}
 
@@ -712,7 +771,7 @@ bool AssetsManager::uncompress(std::string binFile)
 	unz_global_info global_info;
 	if (unzGetGlobalInfo(zipfile, &global_info) != UNZ_OK)
 	{
-		CCLOG("can not read file global info of %s", binFile.c_str());
+		CCLOG("can not read file global info of %s", binFile2.c_str());
 		unzClose(zipfile);
 		return false;
 	}
@@ -751,11 +810,19 @@ bool AssetsManager::uncompress(std::string binFile)
 		{
 			// Entry is a direcotry, so create it.
 			// If the directory exists, it will failed scilently.
-			if (!createDirectory(fullPath.c_str()))
+			if (!dirs[fullPath])
 			{
-				CCLOG("can not create directory %s", fullPath.c_str());
-				unzClose(zipfile);
-				return false;
+				if (!createDirectory(fullPath.c_str()))
+				{
+					CCLOG("can not create directory %s", fullPath.c_str());
+					unzClose(zipfile);
+					return false;
+				}
+				else
+				{
+					dirs[fullPath] = true;
+					CCLOG("create directory %s", fullPath.c_str());
+				}
 			}
 		}
 		else
@@ -777,15 +844,19 @@ bool AssetsManager::uncompress(std::string binFile)
 
 				if (!out)
 				{
-					if (!createDirectory(dir.c_str()))
+					if (!dirs[dir])
 					{
-						CCLOG("can not create directory %s", dir.c_str());
-						unzClose(zipfile);
-						return false;
-					}
-					else
-					{
-						CCLOG("create directory %s", dir.c_str());
+						if (!createDirectory(dir.c_str()))
+						{
+							CCLOG("can not create directory %s", dir.c_str());
+							unzClose(zipfile);
+							return false;
+						}
+						else
+						{
+							dirs[dir] = true;
+							CCLOG("create directory %s", dir.c_str());
+						}
 					}
 				}
 				else
@@ -859,6 +930,24 @@ bool AssetsManager::uncompress(std::string binFile)
 
 	CCLOG("end uncompressing");
 	unzClose(zipfile);
+
+#if 0
+#if (CC_TARGET_PLATFORM != CC_PLATFORM_WIN32)
+	std::string command = "rm ";
+	// Path may include space.
+	command += "\"" + binFile2 + "\"";
+	system(command.c_str());
+	remove(binFile2.c_str());
+#else
+	//std::string command = "rd /s /q ";
+	//std::string	command = "cd \"" + FileUtils::getInstance()->getWritablePath() + "\"\n && del \"" + file + "-tmp" + "\"";
+	//system(command.c_str());
+	remove(binFile2.c_str());
+#endif
+#endif
+	remove(binFile2.c_str());
+
+	//dirs.clear();
 
 	return true;
 }

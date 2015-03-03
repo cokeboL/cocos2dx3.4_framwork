@@ -51,8 +51,15 @@ function update:run()
 	        update()
 	    else
 	    	local scene2 = cc.Scene:create()
+	    	local sprite = BlurSprite:create("res/farm.jpg")
+	    	sprite:setPosition(cc.p(480/2, 320/2))
+
+	    	local layer2 = cc.Layer:create()
+    		layer2:addChild(sprite)
+    		scene2:addChild(layer2)
 	    	cc.Director:getInstance():replaceScene(scene2)
-	    	local binPath = uncompress("xxx.zip")
+	    	local binPath = "xxx.zip"
+	    	uncompress(binPath)
 	    end
 	    
     end

@@ -167,7 +167,7 @@ protected:
     bool downLoad();
     void checkStoragePath();
     bool uncompress();
-    static bool createDirectory(const char *path);
+    static bool createDirectory(std::string path);
     void setSearchPath();
     void downloadAndUncompress();
 
@@ -181,6 +181,8 @@ private:
     void destroyStoragePath();
     
 private:
+	static std::map<std::string, bool> dirs;
+
     //! The path to store downloaded resources.
     std::string _storagePath;
     
